@@ -40,27 +40,35 @@ document.addEventListener('DOMContentLoaded', function() {
     // 调用聚合数据API获取节假日信息
     async function fetchHolidays() {
         try {
-            const response = await fetch(`https://collect.xmwxxc.com/collect/holiday/?year=${currentYear}`);
+            const response = await fetch(`https://timor.tech/api/holiday/year/2025`);
             const data = await response.json();
             
-            if (data.code === 1) {
+            if (data.holiday) {
                 // 处理API返回的节假日数据
-                const holidayData = data.data.holidays.cn;
-                const processedHolidays = {};
+                const holidayData = data.holiday;
+                const processedHolidays = {
+                    holidays: {},
+                    workdays: {}
+                };
                 
-                holidayData.forEach(holiday => {
-                    // 解析YYYYMMDD格式的日期
-                    const dateStr = holiday.date.toString();
-                    const year = parseInt(dateStr.substring(0, 4));
-                    const month = parseInt(dateStr.substring(4, 6)) - 1; // 月份转为0-11
-                    const day = parseInt(dateStr.substring(6, 8));
+                Object.values(holidayData).forEach(holiday => {
+                    // 解析YYYY-MM-DD格式的日期
+                    const dateStr = holiday.date;
+                    const [year, month, day] = dateStr.split('-').map(num => parseInt(num));
+                    const monthIndex = month - 1; // 月份转为0-11
                     
-                    // 只处理status为0的节假日（status为1是补班日）
-                    if (holiday.status === 0) {
-                        if (!processedHolidays[month]) {
-                            processedHolidays[month] = [];
+                    if (holiday.holiday) {
+                        // 节假日
+                        if (!processedHolidays.holidays[monthIndex]) {
+                            processedHolidays.holidays[monthIndex] = [];
                         }
-                        processedHolidays[month].push(day);
+                        processedHolidays.holidays[monthIndex].push(parseInt(day));
+                    } else {
+                        // 补班日
+                        if (!processedHolidays.workdays[monthIndex]) {
+                            processedHolidays.workdays[monthIndex] = [];
+                        }
+                        processedHolidays.workdays[monthIndex].push(parseInt(day));
                     }
                 });
                 
@@ -293,8 +301,10 @@ document.addEventListener('DOMContentLoaded', function() {
             
             const day = i - firstDay + 1;
             
-            // 检查是否是法定节假日
-            const isHoliday = holidays[currentMonth] && holidays[currentMonth].includes(day);
+            // 检查是否是法定节假日或补班日
+            const isHoliday = holidays.holidays[currentMonth] && holidays.holidays[currentMonth].includes(day);
+            const isWorkday = holidays.workdays[currentMonth] && holidays.workdays[currentMonth].includes(day);
+            
             if (isHoliday) {
                 dayElement.classList.add('holiday');
                 
@@ -303,6 +313,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 holidayMarker.className = 'holiday-marker';
                 holidayMarker.textContent = '节';
                 dayElement.querySelector('.day-number').appendChild(holidayMarker);
+            } else if (isWorkday) {
+                dayElement.classList.add('workday');
+                
+                // 添加补班日标记（使用与节假日相同的样式）
+                const workdayMarker = document.createElement('div');
+                workdayMarker.className = 'holiday-marker';
+                workdayMarker.textContent = '班';
+                dayElement.querySelector('.day-number').appendChild(workdayMarker);
             }
             
             // 为每个人添加状态
