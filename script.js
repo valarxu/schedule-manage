@@ -1,4 +1,87 @@
 document.addEventListener('DOMContentLoaded', function() {
+    // 导出按钮点击事件
+    document.getElementById('export-btn').addEventListener('click', exportToExcel);
+    document.getElementById('export-pdf-btn').addEventListener('click', exportToPDF);
+
+    // 导出为PDF功能
+    async function exportToPDF() {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF('p', 'pt', 'a4');
+        const container = document.querySelector('.container');
+
+        // 使用html2canvas将页面转换为图片
+        const canvas = await html2canvas(container, {
+            scale: 2, // 提高清晰度
+            useCORS: true,
+            logging: false
+        });
+
+        // 获取图片尺寸
+        const imgWidth = doc.internal.pageSize.getWidth();
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+        // 将图片添加到PDF
+        const imgData = canvas.toDataURL('image/jpeg', 1.0);
+        doc.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight);
+
+        // 如果内容超过一页，添加新页面
+        let heightLeft = imgHeight;
+        let position = 0;
+        while (heightLeft >= doc.internal.pageSize.getHeight()) {
+            position = heightLeft - doc.internal.pageSize.getHeight();
+            doc.addPage();
+            doc.addImage(imgData, 'JPEG', 0, -position, imgWidth, imgHeight);
+            heightLeft -= doc.internal.pageSize.getHeight();
+        }
+
+        // 下载PDF文件
+        doc.save(`排班表_${currentYear}年${currentMonth + 1}月.pdf`);
+    }
+    
+    // 导出为Excel功能
+    function exportToExcel() {
+        // 创建工作簿
+        const wb = XLSX.utils.book_new();
+        
+        // 准备数据
+        const data = [];
+        
+        // 添加表头
+        data.push(['日期', displayNames['A'], displayNames['B'], displayNames['C'], displayNames['D']]);
+        
+        // 获取当月天数
+        const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+        
+        // 收集每天的排班数据
+        for (let day = 1; day <= daysInMonth; day++) {
+            const row = [`${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`];
+            
+            // 添加每个人的排班情况
+            for (const person of staff) {
+                let status = '';
+                if (schedule[person].restDays.includes(day)) {
+                    status = '休';
+                } else if (schedule[person].morningShifts.includes(day)) {
+                    status = '早班';
+                } else if (schedule[person].eveningShifts.includes(day)) {
+                    status = '晚班';
+                }
+                row.push(status);
+            }
+            
+            data.push(row);
+        }
+        
+        // 创建工作表
+        const ws = XLSX.utils.aoa_to_sheet(data);
+        
+        // 添加工作表到工作簿
+        XLSX.utils.book_append_sheet(wb, ws, '排班表');
+        
+        // 导出文件
+        XLSX.writeFile(wb, `排班表_${currentYear}年${currentMonth + 1}月.xlsx`);
+    }
+
     // 获取当前日期
     let currentDate = new Date();
     let currentYear = currentDate.getFullYear();
@@ -28,8 +111,32 @@ document.addEventListener('DOMContentLoaded', function() {
         generateStatistics(schedule);
     }
     
-    // 人员列表
+    // 人员列表和显示名字
     const staff = ['A', 'B', 'C', 'D'];
+    let displayNames = {
+        'A': 'A',
+        'B': 'B',
+        'C': 'C',
+        'D': 'D'
+    };
+
+    // 初始化人员名字输入框
+    function initStaffNameInputs() {
+        for (const person of staff) {
+            const input = document.getElementById(`staff-${person.toLowerCase()}`);
+            input.value = displayNames[person];
+            input.addEventListener('input', function() {
+                displayNames[person] = this.value || person;
+                // 重新生成日历和排班表以更新显示的名字
+                generateCalendar(currentYear, currentMonth);
+                displaySchedule(schedule);
+                generateStatistics(schedule);
+            });
+        }
+    }
+    
+    // 初始化人员名字输入框
+    initStaffNameInputs();
     
     // 特殊日期（需要全员值班的日期）
     const specialDates = [8, 10, 15];
@@ -331,7 +438,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 const staffElement = document.createElement('div');
                 staffElement.className = `staff staff-${person.toLowerCase()}`;
-                staffElement.textContent = person;
+                staffElement.textContent = displayNames[person];
                 staffElement.dataset.person = person;
                 staffElement.dataset.day = day;
                 
@@ -359,15 +466,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     // 切换状态
                     if (isResting) {
                         this.classList.add('morning');
-                        this.textContent = this.dataset.person + ' (早)';
+                        this.textContent = displayNames[this.dataset.person] + ' (早)';
                         updateSchedule(this.dataset.person, parseInt(this.dataset.day), 'morning');
                     } else if (isMorning) {
                         this.classList.add('evening');
-                        this.textContent = this.dataset.person + ' (晚)';
+                        this.textContent = displayNames[this.dataset.person] + ' (晚)';
                         updateSchedule(this.dataset.person, parseInt(this.dataset.day), 'evening');
                     } else {
                         this.classList.add('rest');
-                        this.textContent = this.dataset.person + ' (休)';
+                        this.textContent = displayNames[this.dataset.person] + ' (休)';
                         updateSchedule(this.dataset.person, parseInt(this.dataset.day), 'rest');
                     }
                 });
@@ -424,7 +531,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             const staffName = document.createElement('div');
             staffName.className = 'staff-name';
-            staffName.textContent = `${person} 的排班情况：`;
+            staffName.textContent = `${displayNames[person]} 的排班情况：`;
             staffStats.appendChild(staffName);
             
             // 工作日期

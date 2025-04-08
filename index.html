@@ -135,13 +135,22 @@
     <div class="container">
         <h1>排班系统</h1>
         
+        <div class="staff-names" style="margin-bottom: 20px; text-align: center;">
+            <div style="margin-bottom: 15px;">
+                <input type="text" id="staff-a" placeholder="A的名字" style="padding: 5px; margin-right: 10px;">
+                <input type="text" id="staff-b" placeholder="B的名字" style="padding: 5px; margin-right: 10px;">
+                <input type="text" id="staff-c" placeholder="C的名字" style="padding: 5px; margin-right: 10px;">
+                <input type="text" id="staff-d" placeholder="D的名字" style="padding: 5px;">
+            </div>
+        </div>
+        
         <div class="date-selector" style="margin-bottom: 20px; text-align: center;">
             <select id="year-select" style="padding: 5px; margin-right: 10px;">
                 <option value="2023">2023</option>
                 <option value="2024">2024</option>
                 <option value="2025">2025</option>
             </select>
-            <select id="month-select" style="padding: 5px;">
+            <select id="month-select" style="padding: 5px; margin-right: 10px;">
                 <option value="0">1月</option>
                 <option value="1">2月</option>
                 <option value="2">3月</option>
@@ -155,6 +164,8 @@
                 <option value="10">11月</option>
                 <option value="11">12月</option>
             </select>
+            <button id="export-btn" style="padding: 5px 15px; background-color: #1890ff; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 10px;">导出Excel</button>
+            <button id="export-pdf-btn" style="padding: 5px 15px; background-color: #52c41a; color: white; border: none; border-radius: 4px; cursor: pointer;">导出PDF</button>
         </div>
         
         <div class="calendar">
@@ -179,6 +190,9 @@
         </div>
     </div>
 
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
