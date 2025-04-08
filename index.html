@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>排班系统</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .calendar {
+            margin-top: 20px;
+        }
+        .month-header {
+            text-align: center;
+            font-size: 1.5em;
+            margin-bottom: 15px;
+            color: #444;
+        }
+        .weekdays {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            text-align: center;
+            font-weight: bold;
+            background-color: #f0f0f0;
+            padding: 10px 0;
+            border-radius: 4px;
+        }
+        .days {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 5px;
+            margin-top: 10px;
+        }
+        .day {
+            border: 1px solid #ddd;
+            padding: 10px;
+            min-height: 100px;
+            border-radius: 4px;
+            position: relative;
+        }
+        .day-number {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .weekend {
+            background-color: #f8f8f8;
+        }
+        .special-day {
+            background-color: #ffe6e6;
+        }
+        .holiday {
+            background-color: #ffecb3;
+        }
+        .holiday-marker {
+            display: inline-block;
+            margin-left: 5px;
+            font-size: 0.7em;
+            color: #ff4d4f;
+            background-color: #fff1f0;
+            border: 1px solid #ffa39e;
+            border-radius: 3px;
+            padding: 0 3px;
+            vertical-align: top;
+        }
+        .staff {
+            margin: 2px 0;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-size: 0.9em;
+        }
+        .staff-a {
+            background-color: #e6f7ff;
+            border: 1px solid #91d5ff;
+        }
+        .staff-b {
+            background-color: #f6ffed;
+            border: 1px solid #b7eb8f;
+        }
+        .staff-c {
+            background-color: #fff7e6;
+            border: 1px solid #ffd591;
+        }
+        .staff-d {
+            background-color: #f9f0ff;
+            border: 1px solid #d3adf7;
+        }
+        .rest {
+            text-decoration: line-through;
+            opacity: 0.7;
+        }
+        .morning {
+            background-color: #e6fffb;
+            border-color: #87e8de;
+        }
+        .evening {
+            background-color: #fcffe6;
+            border-color: #d3f261;
+        }
+        .statistics {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #f9f9f9;
+            border-radius: 8px;
+        }
+        .staff-stats {
+            margin-bottom: 15px;
+        }
+        .staff-name {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .date-list {
+            margin: 5px 0;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>排班系统</h1>
+        
+        <div class="date-selector" style="margin-bottom: 20px; text-align: center;">
+            <select id="year-select" style="padding: 5px; margin-right: 10px;">
+                <option value="2023">2023</option>
+                <option value="2024">2024</option>
+                <option value="2025">2025</option>
+            </select>
+            <select id="month-select" style="padding: 5px;">
+                <option value="0">1月</option>
+                <option value="1">2月</option>
+                <option value="2">3月</option>
+                <option value="3">4月</option>
+                <option value="4">5月</option>
+                <option value="5">6月</option>
+                <option value="6">7月</option>
+                <option value="7">8月</option>
+                <option value="8">9月</option>
+                <option value="9">10月</option>
+                <option value="10">11月</option>
+                <option value="11">12月</option>
+            </select>
+        </div>
+        
+        <div class="calendar">
+            <div class="month-header" id="month-header">2023年12月</div>
+            <div class="weekdays">
+                <div>周日</div>
+                <div>周一</div>
+                <div>周二</div>
+                <div>周三</div>
+                <div>周四</div>
+                <div>周五</div>
+                <div>周六</div>
+            </div>
+            <div class="days" id="calendar-days">
+                <!-- 日历内容将通过JavaScript动态生成 -->
+            </div>
+        </div>
+        
+        <div class="statistics" id="statistics">
+            <h2>排班统计</h2>
+            <!-- 统计内容将通过JavaScript动态生成 -->
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
