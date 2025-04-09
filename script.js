@@ -293,6 +293,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 eveningShifts: []
             };
         }
+
+        // 定义工作组
+        const groupAB = ['A', 'B'];
+        const groupCD = ['C', 'D'];
+        let isGroupABWorking = true; // 用于追踪当前是否是AB组工作
+        let workDayCount = 0; // 用于追踪连续工作天数
         
         // 为每一天分配人员
         for (let day = 1; day <= daysInMonth; day++) {
@@ -301,87 +307,47 @@ document.addEventListener('DOMContentLoaded', function() {
             const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
             const isSpecialDay = specialDates.includes(day);
             
-            // 确定这一天需要多少人值班
-            let requiredStaff;
+            // 如果是周末或特殊日期，所有人都要工作
             if (isWeekend || isSpecialDay) {
-                requiredStaff = 4; // 周末和特殊日期需要4人值班
-            } else {
-                requiredStaff = 2; // 工作日至少2人值班
-            }
-            
-            // 计算每个人已经休息的天数（本周内）
-            const weekStart = day - dayOfWeek;
-            const restCountThisWeek = {};
-            
-            for (const person of staff) {
-                restCountThisWeek[person] = 0;
+                // 所有人都工作，分配早晚班
+                const morningStaff = [staff[0], staff[1]]; // A, B早班
+                const eveningStaff = [staff[2], staff[3]]; // C, D晚班
                 
-                // 计算本周内已休息的天数
-                for (let d = Math.max(1, weekStart); d < day; d++) {
-                    if (schedule[person].restDays.includes(d)) {
-                        restCountThisWeek[person]++;
-                    }
-                }
-            }
-            
-            // 确定谁应该休息
-            const restingStaff = [];
-            
-            // 如果是周末或特殊日期，没有人休息
-            if (!isWeekend && !isSpecialDay) {
-                // 按照已休息天数排序（优先让休息天数少的人休息）
-                const sortedStaff = [...staff].sort((a, b) => {
-                    return restCountThisWeek[a] - restCountThisWeek[b];
-                });
-                
-                // 选择休息的人员（确保每周休息2天）
-                for (const person of sortedStaff) {
-                    if (restingStaff.length >= staff.length - requiredStaff) {
-                        break; // 已经有足够的人休息
-                    }
-                    
-                    if (restCountThisWeek[person] < 2) {
-                        restingStaff.push(person);
-                    }
-                }
-            }
-            
-            // 更新排班表并分配早晚班
-            // 计算每个人当前的早晚班次数，用于均衡分配
-            const shiftCounts = {};
-            for (const person of staff) {
-                shiftCounts[person] = {
-                    morning: schedule[person].morningShifts.length,
-                    evening: schedule[person].eveningShifts.length
-                };
-            }
-            
-            // 按照早晚班次数排序（优先分配给班次少的人）
-            const workingStaff = staff.filter(person => !restingStaff.includes(person));
-            const morningStaff = [...workingStaff].sort((a, b) => {
-                // 优先考虑早班次数，如果早班次数相同，则考虑总工作天数
-                if (shiftCounts[a].morning !== shiftCounts[b].morning) {
-                    return shiftCounts[a].morning - shiftCounts[b].morning;
-                }
-                return schedule[a].workDays.length - schedule[b].workDays.length;
-            });
-            
-            // 确定早班人数（工作人员的一半，向上取整）
-            const morningCount = Math.ceil(workingStaff.length / 2);
-            
-            // 分配早晚班
-            for (const person of staff) {
-                if (restingStaff.includes(person)) {
-                    schedule[person].restDays.push(day);
-                } else {
+                for (const person of staff) {
                     schedule[person].workDays.push(day);
-                    
-                    // 分配早晚班
-                    if (morningStaff.indexOf(person) < morningCount) {
+                    if (morningStaff.includes(person)) {
                         schedule[person].morningShifts.push(day);
                     } else {
                         schedule[person].eveningShifts.push(day);
                     }
+                }
+            } else {
+                // 工作日按照AB和CD轮换模式排班
+                const workingGroup = isGroupABWorking ? groupAB : groupCD;
+                const restingGroup = isGroupABWorking ? groupCD : groupAB;
+                
+                // 分配工作和休息
+                for (const person of workingGroup) {
+                    schedule[person].workDays.push(day);
+                    // 工作组中第一个人上早班，第二个人上晚班
+                    if (person === workingGroup[0]) {
+                        schedule[person].morningShifts.push(day);
+                    } else {
+                        schedule[person].eveningShifts.push(day);
+                    }
+                }
+                
+                for (const person of restingGroup) {
+                    schedule[person].restDays.push(day);
+                }
+                
+                // 更新工作天数计数
+                workDayCount++;
+                
+                // 如果已经工作了两天，切换工作组
+                if (workDayCount === 2) {
+                    isGroupABWorking = !isGroupABWorking;
+                    workDayCount = 0;
                 }
             }
         }
@@ -409,8 +375,19 @@ document.addEventListener('DOMContentLoaded', function() {
             const day = i - firstDay + 1;
             
             // 检查是否是法定节假日或补班日
-            const isHoliday = holidays.holidays[currentMonth] && holidays.holidays[currentMonth].includes(day);
-            const isWorkday = holidays.workdays[currentMonth] && holidays.workdays[currentMonth].includes(day);
+            const isHoliday = holidays.holidays?.[currentMonth] && holidays.holidays[currentMonth].includes(day);
+            const isWorkday = holidays.workdays?.[currentMonth] && holidays.workdays[currentMonth].includes(day);
+            
+            // 检查是否是特殊日期
+            const isSpecialDay = specialDates.includes(day);
+            
+            if (isSpecialDay) {
+                dayElement.classList.add('special-day');
+                const specialMarker = document.createElement('div');
+                specialMarker.className = 'holiday-marker';
+                specialMarker.textContent = '特殊';
+                dayElement.querySelector('.day-number').appendChild(specialMarker);
+            }
             
             if (isHoliday) {
                 dayElement.classList.add('holiday');
@@ -418,7 +395,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // 添加节假日标记
                 const holidayMarker = document.createElement('div');
                 holidayMarker.className = 'holiday-marker';
-                holidayMarker.textContent = '节';
+                holidayMarker.textContent = '节假日';
                 dayElement.querySelector('.day-number').appendChild(holidayMarker);
             } else if (isWorkday) {
                 dayElement.classList.add('workday');
@@ -426,7 +403,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // 添加补班日标记（使用与节假日相同的样式）
                 const workdayMarker = document.createElement('div');
                 workdayMarker.className = 'holiday-marker';
-                workdayMarker.textContent = '班';
+                workdayMarker.textContent = '补班';
                 dayElement.querySelector('.day-number').appendChild(workdayMarker);
             }
             
