@@ -2,6 +2,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // 导出按钮点击事件
     document.getElementById('export-btn').addEventListener('click', exportToExcel);
     document.getElementById('export-pdf-btn').addEventListener('click', exportToPDF);
+    document.getElementById('reset-btn').addEventListener('click', resetSchedule);
+    document.getElementById('save-btn').addEventListener('click', saveSchedule);
 
     // 导出为PDF功能
     async function exportToPDF() {
@@ -36,6 +38,104 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // 下载PDF文件
         doc.save(`排班表_${currentYear}年${currentMonth + 1}月.pdf`);
+    }
+    
+    // 恢复默认排班
+    function resetSchedule() {
+        // 清除本地存储的排班数据
+        localStorage.removeItem('savedSchedule_' + currentYear);
+        localStorage.removeItem('savedGlobalPatternIndex');
+        localStorage.removeItem('savedDisplayNames');
+        
+        // 重置全局模式索引为0（确保跟初始加载时一致）
+        globalPatternIndex = 0;
+        
+        // 重置人员名字为默认值
+        displayNames = {
+            'A': 'A',
+            'B': 'B',
+            'C': 'C',
+            'D': 'D'
+        };
+        
+        // 更新人员名字输入框
+        for (const person of staff) {
+            const input = document.getElementById(`staff-${person.toLowerCase()}`);
+            if (input) {
+                input.value = displayNames[person];
+            }
+        }
+        
+        // 使用完全相同的方式重新计算全年排班
+        yearlyScheduleData = {};
+        for (let month = 0; month < 12; month++) {
+            yearlyScheduleData[month] = generateSchedule(currentYear, month);
+        }
+        
+        // 更新显示
+        generateCalendar(currentYear, currentMonth);
+        displaySchedule(yearlyScheduleData[currentMonth]);
+        generateStatistics(yearlyScheduleData[currentMonth]);
+        
+        alert('已恢复默认排班！');
+    }
+    
+    // 保存排班到本地存储
+    function saveSchedule() {
+        try {
+            // 保存当前年份的所有排班数据
+            localStorage.setItem('savedSchedule_' + currentYear, JSON.stringify(yearlyScheduleData));
+            localStorage.setItem('savedGlobalPatternIndex', globalPatternIndex.toString());
+            localStorage.setItem('savedDisplayNames', JSON.stringify(displayNames));
+            
+            alert('排班表已保存！');
+        } catch (e) {
+            alert('保存失败，可能是存储空间不足：' + e.message);
+        }
+    }
+    
+    // 从本地存储加载排班
+    function loadSavedSchedule(year) {
+        try {
+            const savedSchedule = localStorage.getItem('savedSchedule_' + year);
+            const savedPatternIndex = localStorage.getItem('savedGlobalPatternIndex');
+            const savedDisplayNames = localStorage.getItem('savedDisplayNames');
+            
+            let hasData = false;
+            
+            if (savedSchedule) {
+                yearlyScheduleData = JSON.parse(savedSchedule);
+                hasData = true;
+            }
+            
+            if (savedPatternIndex) {
+                globalPatternIndex = parseInt(savedPatternIndex);
+                hasData = true;
+            }
+            
+            if (savedDisplayNames) {
+                const parsedNames = JSON.parse(savedDisplayNames);
+                // 更新显示名称
+                for (const person in parsedNames) {
+                    displayNames[person] = parsedNames[person];
+                }
+                
+                // 更新输入框
+                for (const person of staff) {
+                    const input = document.getElementById(`staff-${person.toLowerCase()}`);
+                    if (input && displayNames[person]) {
+                        input.value = displayNames[person];
+                    }
+                }
+                
+                hasData = true;
+            }
+            
+            return savedSchedule ? true : false; // 只有当排班数据存在时才返回true
+        } catch (e) {
+            console.error('加载保存的排班出错：', e);
+            return false;
+        }
     }
     
     // 导出为Excel功能
@@ -95,21 +195,11 @@ document.addEventListener('DOMContentLoaded', function() {
     yearSelect.value = currentYear;
     monthSelect.value = currentMonth;
     
-    // 添加年月选择器事件监听
-    yearSelect.addEventListener('change', updateCalendar);
-    monthSelect.addEventListener('change', updateCalendar);
+    // 全年排班数据
+    let yearlyScheduleData = {};
     
-    function updateCalendar() {
-        currentYear = parseInt(yearSelect.value);
-        currentMonth = parseInt(monthSelect.value);
-        currentDate = new Date(currentYear, currentMonth, 1);
-        
-        // 重新生成日历和排班表
-        generateCalendar(currentYear, currentMonth);
-        const schedule = generateSchedule(currentYear, currentMonth);
-        displaySchedule(schedule);
-        generateStatistics(schedule);
-    }
+    // 初始化全局排班模式索引
+    let globalPatternIndex = 0;
     
     // 人员列表和显示名字
     const staff = ['A', 'B', 'C', 'D'];
@@ -119,101 +209,52 @@ document.addEventListener('DOMContentLoaded', function() {
         'C': 'C',
         'D': 'D'
     };
-
-    // 初始化人员名字输入框
-    function initStaffNameInputs() {
-        for (const person of staff) {
-            const input = document.getElementById(`staff-${person.toLowerCase()}`);
-            input.value = displayNames[person];
-            input.addEventListener('input', function() {
-                displayNames[person] = this.value || person;
-                // 重新生成日历和排班表以更新显示的名字
-                generateCalendar(currentYear, currentMonth);
-                displaySchedule(schedule);
-                generateStatistics(schedule);
-            });
-        }
-    }
     
-    // 初始化人员名字输入框
-    initStaffNameInputs();
+    // 添加年月选择器事件监听
+    yearSelect.addEventListener('change', updateCalendar);
+    monthSelect.addEventListener('change', updateCalendar);
     
-    // 特殊日期（需要全员值班的日期）
-    const specialDates = [8, 10, 15];
+    // 初始化时尝试加载保存的名字
+    loadSavedSchedule(currentYear);
     
-    // 从聚合数据API获取中国法定节假日数据
-    let holidays = {};
-    
-    // 调用聚合数据API获取节假日信息
-    async function fetchHolidays() {
-        try {
-            const response = await fetch(`https://timor.tech/api/holiday/year/2025`);
-            const data = await response.json();
+    function updateCalendar() {
+        const newYear = parseInt(yearSelect.value);
+        const newMonth = parseInt(monthSelect.value);
+        
+        // 如果年份变化，需要重新计算或加载排班
+        if (newYear !== currentYear) {
+            currentYear = newYear;
             
-            if (data.holiday) {
-                // 处理API返回的节假日数据
-                const holidayData = data.holiday;
-                const processedHolidays = {
-                    holidays: {},
-                    workdays: {}
-                };
+            // 先尝试从本地存储加载排班
+            const hasSavedSchedule = loadSavedSchedule(currentYear);
+            
+            // 如果没有保存的排班数据，重新生成
+            if (!hasSavedSchedule) {
+                // 重置全局模式索引
+                globalPatternIndex = 0;
                 
-                Object.values(holidayData).forEach(holiday => {
-                    // 解析YYYY-MM-DD格式的日期
-                    const dateStr = holiday.date;
-                    const [year, month, day] = dateStr.split('-').map(num => parseInt(num));
-                    const monthIndex = month - 1; // 月份转为0-11
-                    
-                    if (holiday.holiday) {
-                        // 节假日
-                        if (!processedHolidays.holidays[monthIndex]) {
-                            processedHolidays.holidays[monthIndex] = [];
-                        }
-                        processedHolidays.holidays[monthIndex].push(parseInt(day));
-                    } else {
-                        // 补班日
-                        if (!processedHolidays.workdays[monthIndex]) {
-                            processedHolidays.workdays[monthIndex] = [];
-                        }
-                        processedHolidays.workdays[monthIndex].push(parseInt(day));
-                    }
-                });
-                
-                holidays = processedHolidays;
-                
-                // 重新生成日历和排班表
-                generateCalendar(currentYear, currentMonth);
-                const schedule = generateSchedule(currentYear, currentMonth);
-                displaySchedule(schedule);
-                generateStatistics(schedule);
-            } else {
-                console.error('获取节假日数据失败:', data.reason);
+                // 重新计算全年排班
+                yearlyScheduleData = {};
+                for (let month = 0; month < 12; month++) {
+                    yearlyScheduleData[month] = generateSchedule(currentYear, month);
+                }
             }
-        } catch (error) {
-            console.error('获取节假日数据时出错:', error);
         }
+        
+        currentMonth = newMonth;
+        currentDate = new Date(currentYear, currentMonth, 1);
+        
+        // 重新生成日历
+        generateCalendar(currentYear, currentMonth);
+        
+        // 显示排班表
+        displaySchedule(yearlyScheduleData[currentMonth]);
+        
+        // 生成统计信息
+        generateStatistics(yearlyScheduleData[currentMonth]);
     }
-    
-    // 初始化时获取节假日数据
-    fetchHolidays();
     
     // 生成日历
-    generateCalendar(currentYear, currentMonth);
-    
-    // 生成排班表
-    const schedule = generateSchedule(currentYear, currentMonth);
-    
-    // 显示排班表
-    displaySchedule(schedule);
-    
-    // 生成统计信息
-    generateStatistics(schedule);
-    
-    /**
-     * 生成日历
-     * @param {number} year - 年份
-     * @param {number} month - 月份（0-11）
-     */
     function generateCalendar(year, month) {
         const monthHeader = document.getElementById('month-header');
         const calendarDays = document.getElementById('calendar-days');
@@ -290,66 +331,122 @@ document.addEventListener('DOMContentLoaded', function() {
                 workDays: [],
                 restDays: [],
                 morningShifts: [],
-                eveningShifts: []
+                eveningShifts: [],
+                restDaysCount: 0   // 记录已休息天数
             };
         }
 
-        // 定义工作组
-        const groupAB = ['A', 'B'];
-        const groupCD = ['C', 'D'];
-        let isGroupABWorking = true; // 用于追踪当前是否是AB组工作
-        let workDayCount = 0; // 用于追踪连续工作天数
+        // 定义休息模式
+        // 0: AB休息, 1: AB休息, 2: CD休息, 3: CD休息
+        let restPatternIndex = 0;
         
+        // 使用全局模式索引，不重置
         // 为每一天分配人员
         for (let day = 1; day <= daysInMonth; day++) {
+            // 判断是否是特殊日期（周末或8号、10号、15号）
             const date = new Date(year, month, day);
             const dayOfWeek = date.getDay(); // 0-6，0表示星期日
             const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
             const isSpecialDay = specialDates.includes(day);
+            const isRestrictedDay = isWeekend || isSpecialDay;
             
-            // 如果是周末或特殊日期，所有人都要工作
-            if (isWeekend || isSpecialDay) {
-                // 所有人都工作，分配早晚班
-                const morningStaff = [staff[0], staff[1]]; // A, B早班
-                const eveningStaff = [staff[2], staff[3]]; // C, D晚班
-                
-                for (const person of staff) {
-                    schedule[person].workDays.push(day);
-                    if (morningStaff.includes(person)) {
-                        schedule[person].morningShifts.push(day);
-                    } else {
-                        schedule[person].eveningShifts.push(day);
+            // 根据当前模式确定基础早晚班
+            let morningPairs = [];
+            let eveningPairs = [];
+            
+            // 确定哪些人休息
+            let restingPeople = [];
+            
+            // 如果不是特殊日期，执行休息逻辑
+            if (!isRestrictedDay) {
+                // 确定当前休息模式下应该休息的人
+                if (restPatternIndex % 4 < 2) { // AB休息
+                    // 检查A和B是否已达到休息天数上限
+                    if (schedule['A'].restDaysCount < 8) {
+                        restingPeople.push('A');
                     }
+                    if (schedule['B'].restDaysCount < 8) {
+                        restingPeople.push('B');
+                    }
+                } else { // CD休息
+                    // 检查C和D是否已达到休息天数上限
+                    if (schedule['C'].restDaysCount < 8) {
+                        restingPeople.push('C');
+                    }
+                    if (schedule['D'].restDaysCount < 8) {
+                        restingPeople.push('D');
+                    }
+                }
+                
+                // 进入下一个休息模式
+                restPatternIndex = (restPatternIndex + 1) % 4;
+            }
+            
+            // 确定工作的人
+            const workingPeople = staff.filter(person => !restingPeople.includes(person));
+            
+            // 如果有人休息，需要调整排班
+            if (restingPeople.length > 0) {
+                // 根据全局排班模式决定工作的人如何分配早晚班
+                if (globalPatternIndex % 4 < 2) { // A早B晚C早D晚模式
+                    // 优先保持原有模式
+                    morningPairs = workingPeople.filter(p => ['A', 'C'].includes(p));
+                    eveningPairs = workingPeople.filter(p => ['B', 'D'].includes(p));
+                } else { // A晚B早C晚D早模式
+                    morningPairs = workingPeople.filter(p => ['B', 'D'].includes(p));
+                    eveningPairs = workingPeople.filter(p => ['A', 'C'].includes(p));
+                }
+                
+                // 确保早晚班都有人
+                if (morningPairs.length === 0 && eveningPairs.length >= 2) {
+                    morningPairs = [eveningPairs[0]];
+                    eveningPairs = eveningPairs.slice(1);
+                } else if (eveningPairs.length === 0 && morningPairs.length >= 2) {
+                    eveningPairs = [morningPairs[0]];
+                    morningPairs = morningPairs.slice(1);
                 }
             } else {
-                // 工作日按照AB和CD轮换模式排班
-                const workingGroup = isGroupABWorking ? groupAB : groupCD;
-                const restingGroup = isGroupABWorking ? groupCD : groupAB;
-                
-                // 分配工作和休息
-                for (const person of workingGroup) {
+                // 没有人休息，按正常的全局模式排班
+                if (globalPatternIndex % 4 < 2) { // A早B晚C早D晚模式
+                    if (globalPatternIndex % 2 === 0) { // 第1天
+                        morningPairs = ['A', 'C'];
+                        eveningPairs = ['B', 'D'];
+                    } else { // 第2天
+                        morningPairs = ['A', 'C'];
+                        eveningPairs = ['B', 'D'];
+                    }
+                } else { // A晚B早C晚D早模式
+                    if (globalPatternIndex % 2 === 0) { // 第3天
+                        morningPairs = ['B', 'D'];
+                        eveningPairs = ['A', 'C'];
+                    } else { // 第4天
+                        morningPairs = ['B', 'D'];
+                        eveningPairs = ['A', 'C'];
+                    }
+                }
+            }
+            
+            // 记录工作和休息
+            for (const person of staff) {
+                if (restingPeople.includes(person)) {
+                    // 记录休息
+                    schedule[person].restDays.push(day);
+                    schedule[person].restDaysCount += 1;
+                } else {
+                    // 记录工作
                     schedule[person].workDays.push(day);
-                    // 工作组中第一个人上早班，第二个人上晚班
-                    if (person === workingGroup[0]) {
+                    
+                    // 记录早晚班
+                    if (morningPairs.includes(person)) {
                         schedule[person].morningShifts.push(day);
                     } else {
                         schedule[person].eveningShifts.push(day);
                     }
                 }
-                
-                for (const person of restingGroup) {
-                    schedule[person].restDays.push(day);
-                }
-                
-                // 更新工作天数计数
-                workDayCount++;
-                
-                // 如果已经工作了两天，切换工作组
-                if (workDayCount === 2) {
-                    isGroupABWorking = !isGroupABWorking;
-                    workDayCount = 0;
-                }
             }
+            
+            // 更新全局模式索引
+            globalPatternIndex = (globalPatternIndex + 1) % 4;
         }
         
         return schedule;
@@ -418,6 +515,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 staffElement.textContent = displayNames[person];
                 staffElement.dataset.person = person;
                 staffElement.dataset.day = day;
+                staffElement.dataset.month = currentMonth;
                 
                 if (isResting) {
                     staffElement.classList.add('rest');
@@ -444,15 +542,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (isResting) {
                         this.classList.add('morning');
                         this.textContent = displayNames[this.dataset.person] + ' (早)';
-                        updateSchedule(this.dataset.person, parseInt(this.dataset.day), 'morning');
+                        updateSchedule(this.dataset.person, parseInt(this.dataset.month), parseInt(this.dataset.day), 'morning');
                     } else if (isMorning) {
                         this.classList.add('evening');
                         this.textContent = displayNames[this.dataset.person] + ' (晚)';
-                        updateSchedule(this.dataset.person, parseInt(this.dataset.day), 'evening');
+                        updateSchedule(this.dataset.person, parseInt(this.dataset.month), parseInt(this.dataset.day), 'evening');
                     } else {
                         this.classList.add('rest');
                         this.textContent = displayNames[this.dataset.person] + ' (休)';
-                        updateSchedule(this.dataset.person, parseInt(this.dataset.day), 'rest');
+                        updateSchedule(this.dataset.person, parseInt(this.dataset.month), parseInt(this.dataset.day), 'rest');
                     }
                 });
                 
@@ -464,12 +562,17 @@ document.addEventListener('DOMContentLoaded', function() {
     /**
      * 更新排班数据
      * @param {string} person - 人员
+     * @param {number} month - 月份
      * @param {number} day - 日期
      * @param {string} newStatus - 新状态（'rest'/'morning'/'evening'）
      */
-    function updateSchedule(person, day, newStatus) {
+    function updateSchedule(person, month, day, newStatus) {
+        // 确保使用正确的月份数据
+        const monthSchedule = yearlyScheduleData[month];
+        if (!monthSchedule) return;
+
         // 从原状态中移除
-        const personSchedule = schedule[person];
+        const personSchedule = monthSchedule[person];
         personSchedule.workDays = personSchedule.workDays.filter(d => d !== day);
         personSchedule.restDays = personSchedule.restDays.filter(d => d !== day);
         personSchedule.morningShifts = personSchedule.morningShifts.filter(d => d !== day);
@@ -488,7 +591,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         // 更新统计信息
-        generateStatistics(schedule);
+        generateStatistics(monthSchedule);
     }
     
     /**
@@ -542,4 +645,109 @@ document.addEventListener('DOMContentLoaded', function() {
             statisticsElement.appendChild(staffStats);
         }
     }
+
+    // 初始化人员名字输入框
+    function initStaffNameInputs() {
+        for (const person of staff) {
+            const input = document.getElementById(`staff-${person.toLowerCase()}`);
+            input.value = displayNames[person];
+            input.addEventListener('input', function() {
+                displayNames[person] = this.value || person;
+                // 重新显示排班表以更新显示的名字
+                generateCalendar(currentYear, currentMonth);
+                displaySchedule(yearlyScheduleData[currentMonth]);
+                generateStatistics(yearlyScheduleData[currentMonth]);
+            });
+        }
+    }
+    
+    // 特殊日期（需要全员值班的日期）
+    const specialDates = [8, 10, 15];
+    
+    // 从聚合数据API获取中国法定节假日数据
+    let holidays = {};
+    
+    // 调用聚合数据API获取节假日信息
+    async function fetchHolidays() {
+        try {
+            const response = await fetch(`https://timor.tech/api/holiday/year/2025`);
+            const data = await response.json();
+            
+            if (data.holiday) {
+                // 处理API返回的节假日数据
+                const holidayData = data.holiday;
+                const processedHolidays = {
+                    holidays: {},
+                    workdays: {}
+                };
+                
+                Object.values(holidayData).forEach(holiday => {
+                    // 解析YYYY-MM-DD格式的日期
+                    const dateStr = holiday.date;
+                    const [year, month, day] = dateStr.split('-').map(num => parseInt(num));
+                    const monthIndex = month - 1; // 月份转为0-11
+                    
+                    if (holiday.holiday) {
+                        // 节假日
+                        if (!processedHolidays.holidays[monthIndex]) {
+                            processedHolidays.holidays[monthIndex] = [];
+                        }
+                        processedHolidays.holidays[monthIndex].push(parseInt(day));
+                    } else {
+                        // 补班日
+                        if (!processedHolidays.workdays[monthIndex]) {
+                            processedHolidays.workdays[monthIndex] = [];
+                        }
+                        processedHolidays.workdays[monthIndex].push(parseInt(day));
+                    }
+                });
+                
+                holidays = processedHolidays;
+                
+                // 更新界面
+                generateCalendar(currentYear, currentMonth);
+                displaySchedule(yearlyScheduleData[currentMonth]);
+                generateStatistics(yearlyScheduleData[currentMonth]);
+            } else {
+                console.error('获取节假日数据失败:', data.reason);
+            }
+        } catch (error) {
+            console.error('获取节假日数据时出错:', error);
+        }
+    }
+    
+    // 页面初始化函数
+    function initializeApp() {
+        // 重置全局变量，确保初始状态一致
+        globalPatternIndex = 0;
+        
+        // 先加载保存的数据（名字和排班）
+        const hasSavedSchedule = loadSavedSchedule(currentYear);
+        
+        // 初始化人员名字输入框事件监听
+        initStaffNameInputs();
+        
+        // 如果没有保存的排班，使用与resetSchedule完全相同的逻辑计算排班
+        if (!hasSavedSchedule) {
+            yearlyScheduleData = {};
+            for (let month = 0; month < 12; month++) {
+                yearlyScheduleData[month] = generateSchedule(currentYear, month);
+            }
+        }
+        
+        // 生成日历
+        generateCalendar(currentYear, currentMonth);
+        
+        // 显示排班表
+        displaySchedule(yearlyScheduleData[currentMonth]);
+        
+        // 生成统计信息
+        generateStatistics(yearlyScheduleData[currentMonth]);
+        
+        // 获取节假日数据
+        fetchHolidays();
+    }
+    
+    // 初始化应用
+    initializeApp();
 });
