@@ -152,6 +152,9 @@ document.addEventListener('DOMContentLoaded', function() {
         // 获取当月天数
         const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
         
+        // 获取当前月份的排班数据
+        const currentMonthSchedule = yearlyScheduleData[currentMonth];
+        
         // 收集每天的排班数据
         for (let day = 1; day <= daysInMonth; day++) {
             const row = [`${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`];
@@ -159,11 +162,11 @@ document.addEventListener('DOMContentLoaded', function() {
             // 添加每个人的排班情况
             for (const person of staff) {
                 let status = '';
-                if (schedule[person].restDays.includes(day)) {
+                if (currentMonthSchedule[person].restDays.includes(day)) {
                     status = '休';
-                } else if (schedule[person].morningShifts.includes(day)) {
+                } else if (currentMonthSchedule[person].morningShifts.includes(day)) {
                     status = '早班';
-                } else if (schedule[person].eveningShifts.includes(day)) {
+                } else if (currentMonthSchedule[person].eveningShifts.includes(day)) {
                     status = '晚班';
                 }
                 row.push(status);
